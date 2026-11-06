@@ -89,7 +89,8 @@ const interviewReportSchema = new mongoose.Schema({
         ref: "users"
     },
     title: {
-        type: String
+        type: String,
+        required: [ true, "Job title is required" ]
     }
 }, {
     timestamps: true
@@ -98,4 +99,4 @@ const interviewReportSchema = new mongoose.Schema({
 
 const interviewReportModel = mongoose.model("InterviewReport", interviewReportSchema);
 
-module.exports = interviewReportModel;
+module.exports = interviewReportModel;  
