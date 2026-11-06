@@ -95,7 +95,10 @@ app.use(async (req, res, next) => {
 
 /* require all the routes here */
 function resolveRouter(routerModule) {
-    const router = typeof routerModule === "function" ? routerModule : routerModule.default
+    let router = routerModule
+    while (router && typeof router !== "function" && router.default) {
+        router = router.default
+    }
     if (typeof router !== "function") {
         throw new TypeError("An API route module did not export an Express router.")
     }
