@@ -8,14 +8,37 @@ const Home = () => {
     const { loading, generateReport,reports } = useInterview()
     const [ jobDescription, setJobDescription ] = useState("")
     const [ selfDescription, setSelfDescription ] = useState("")
+    const [ formError, setFormError ] = useState("")
     const resumeInputRef = useRef()
 
     const navigate = useNavigate()
 
     const handleGenerateReport = async () => {
-        const resumeFile = resumeInputRef.current.files[ 0 ]
-        const data = await generateReport({ jobDescription, selfDescription, resumeFile })
-        navigate(`/interview/${data._id}`)
+        const resumeFile = resumeInputRef.current.files[0]
+        if (!jobDescription.trim()) {
+            setFormError("Enter the target job description.")
+            return
+        }
+        if (!resumeFile && !selfDescription.trim()) {
+            setFormError("Upload a PDF resume or provide a self-description.")
+            return
+        }
+        const isPdf = resumeFile && (resumeFile.type === "application/pdf" || (!resumeFile.type && resumeFile.name.toLowerCase().endsWith(".pdf")))
+        if (resumeFile && (!isPdf || resumeFile.size > 4 * 1024 * 1024)) {
+            setFormError("Upload a PDF resume that is 4 MB or smaller.")
+            return
+        }
+
+        setFormError("")
+        try {
+            const data = await generateReport({ jobDescription, selfDescription, resumeFile })
+            if (!data?._id) {
+                throw new Error("The server did not return an interview report.")
+            }
+            navigate(`/interview/${data._id}`)
+        } catch (error) {
+            setFormError(error.response?.data?.message || error.message || "Unable to generate your interview plan.")
+        }
     }
 
     if (loading) {
@@ -51,6 +74,7 @@ const Home = () => {
                         <textarea
                             onChange={(e) => { setJobDescription(e.target.value) }}
                             className='panel__textarea'
+                            required
                             placeholder={`Paste the full job description here...\ne.g. 'Senior Frontend Engineer at Google requires proficiency in React, TypeScript, and large-scale system design...'`}
                             maxLength={5000}
                         />
@@ -97,6 +121,7 @@ const Home = () => {
                                 name='selfDescription'
                                 className='panel__textarea panel__textarea--short'
                                 placeholder="Briefly describe your experience, key skills, and years of experience if you don't have a resume handy..."
+                                maxLength={2000}
                             />
                         </div>
 
@@ -115,12 +140,14 @@ const Home = () => {
                     <span className='footer-info'>AI-Powered Strategy Generation &bull; Approx 30s</span>
                     <button
                         onClick={handleGenerateReport}
-                        className='generate-btn'>
+                        className='generate-btn'
+                        disabled={loading}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" /></svg>
-                        Generate My Interview Strategy
+                        {loading ? "Generating..." : "Generate My Interview Strategy"}
                     </button>
                 </div>
             </div>
+            {formError && <p className='form-error' role='alert'>{formError}</p>}
 
             {/* Recent Reports List */}
             {reports.length > 0 && (

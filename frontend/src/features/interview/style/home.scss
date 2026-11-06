@@ -292,8 +292,20 @@ $pink: #f12670;
         cursor: pointer;
         transition: background 150ms ease, transform 150ms ease;
 
+        &:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
         &:hover {
             background: linear-gradient(105deg, #ff4385, #ed1767);
+        }
+
+        .form-error {
+            margin: 10px 0 0;
+            color: #ff8eaa;
+            font-size: 0.82rem;
+            text-align: center;
         }
 
         &:active {

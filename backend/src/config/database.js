@@ -6,7 +6,7 @@ async function  connectToDB() {
     console.log("MongoDB connected successfully");
 }
 catch(err) {
-    console.log(err);
+    throw new Error("MongoDB connection failed.", { cause: err });
 }
 }
 module.exports=connectToDB;

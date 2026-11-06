@@ -2,6 +2,25 @@ const userModel = require("../models/user.model")
 const bcrypt = require("bcryptjs")
 const jwt = require("jsonwebtoken")
 const tokenBlacklistModel = require("../models/blacklist.model")
+const { z } = require("zod")
+
+const registerSchema = z.object({
+    username: z.string().trim().min(3).max(30),
+    email: z.string().trim().email().max(254),
+    password: z.string().min(8).max(72).refine(password => Buffer.byteLength(password, "utf8") <= 72)
+})
+const loginSchema = z.object({
+    email: z.string().trim().email().max(254),
+    password: z.string().min(1).max(72).refine(password => Buffer.byteLength(password, "utf8") <= 72)
+})
+const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production" || process.env.COOKIE_SAME_SITE?.toLowerCase() === "none",
+    sameSite: (process.env.COOKIE_SAME_SITE || (process.env.NODE_ENV === "production" ? "none" : "lax")).toLowerCase(),
+    path: "/",
+    maxAge: 24 * 60 * 60 * 1000,
+    ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {})
+}
 
 /**
  * @name registerUserController
@@ -10,13 +29,14 @@ const tokenBlacklistModel = require("../models/blacklist.model")
  */
 async function registerUserController(req, res) {
 
-    const { username, email, password } = req.body
-
-    if (!username || !email || !password) {
+    const parsedBody = registerSchema.safeParse(req.body)
+    if (!parsedBody.success) {
         return res.status(400).json({
-            message: "Please provide username, email and password"
+            message: "Username must be 3-30 characters, email must be valid, and password must be 8-72 characters."
         })
     }
+    const { username, password } = parsedBody.data
+    const { email } = parsedBody.data
 
     const isUserAlreadyExists = await userModel.findOne({
         $or: [ { username }, { email } ]
@@ -42,7 +62,7 @@ async function registerUserController(req, res) {
         { expiresIn: "1d" }
     )
 
-    res.cookie("token", token)
+    res.cookie("token", token, cookieOptions)
 
 
     res.status(201).json({
@@ -64,7 +84,14 @@ async function registerUserController(req, res) {
  */
 async function loginUserController(req, res) {
 
-    const { email, password } = req.body
+    const parsedBody = loginSchema.safeParse(req.body)
+    if (!parsedBody.success) {
+        return res.status(400).json({
+            message: "A valid email and password are required."
+        })
+    }
+    const { email } = parsedBody.data
+    const { password } = parsedBody.data
 
     const user = await userModel.findOne({ email })
 
@@ -88,7 +115,7 @@ async function loginUserController(req, res) {
         { expiresIn: "1d" }
     )
 
-    res.cookie("token", token)
+    res.cookie("token", token, cookieOptions)
     res.status(200).json({
         message: "User loggedIn successfully.",
         user: {
@@ -112,7 +139,8 @@ async function logoutUserController(req, res) {
         await tokenBlacklistModel.create({ token })
     }
 
-    res.clearCookie("token")
+    const { maxAge, ...clearCookieOptions } = cookieOptions
+    res.clearCookie("token", clearCookieOptions)
 
     res.status(200).json({
         message: "User logged out successfully"
