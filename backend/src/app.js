@@ -94,9 +94,16 @@ app.use(async (req, res, next) => {
 })
 
 /* require all the routes here */
-const authRouter = require("./routes/auth.routes")
-const interviewRouter = require("./routes/interview.routes")
+function resolveRouter(routerModule) {
+    const router = typeof routerModule === "function" ? routerModule : routerModule.default
+    if (typeof router !== "function") {
+        throw new TypeError("An API route module did not export an Express router.")
+    }
+    return router
+}
 
+const authRouter = resolveRouter(require("./routes/auth.routes"))
+const interviewRouter = resolveRouter(require("./routes/interview.routes"))
 
 /* using all the routes here */
 app.use("/api/auth", authRouter)
