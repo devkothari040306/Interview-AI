@@ -2,14 +2,21 @@ const express = require("express")
 const cookieParser = require("cookie-parser")
 const cors = require("cors")
 const multer = require("multer")
+const mongoose = require("mongoose")
+const connectToDB = require("./config/database")
 
 const app = express()
-const allowedOrigins = (process.env.CORS_ORIGINS || (process.env.NODE_ENV === "production" ? "" : "http://localhost:5173"))
+let databaseConnection
+const configuredOrigins = (process.env.CORS_ORIGINS || (process.env.NODE_ENV === "production" ? "" : "http://localhost:5173"))
     .split(",")
     .map(origin => origin.trim())
     .filter(Boolean)
+const deploymentOrigins = [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL]
+    .filter(Boolean)
+    .map(host => `https://${host}`)
+const allowedOrigins = new Set([...configuredOrigins, ...deploymentOrigins])
 
-if (process.env.NODE_ENV === "production" && allowedOrigins.length === 0) {
+if (process.env.NODE_ENV === "production" && allowedOrigins.size === 0) {
     throw new Error("Set CORS_ORIGINS to the frontend origin before starting in production.")
 }
 
@@ -32,7 +39,7 @@ app.use(express.json({ limit: "32kb" }))
 app.use(cookieParser())
 app.use(cors({
     origin(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.has(origin)) {
             return callback(null, true)
         }
         return callback(new Error("Origin is not allowed by CORS."))
@@ -45,8 +52,38 @@ app.use((req, res, next) => {
     }
 
     const origin = req.get("origin")
-    if (!origin || !allowedOrigins.includes(origin)) {
+    if (!origin || !allowedOrigins.has(origin)) {
         return res.status(403).json({ message: "Request origin is not allowed." })
+    }
+
+    return next()
+})
+
+app.use(async (req, res, next) => {
+    const missingEnvironment = ["MONGO_URI", "JWT_SECRET", "GOOGLE_GENAI_API_KEY"]
+        .filter(name => !process.env[name])
+
+    if (missingEnvironment.length > 0) {
+        console.error(`Missing required environment variables: ${missingEnvironment.join(", ")}`)
+        return res.status(503).json({ message: "The service is not configured yet." })
+    }
+
+    if (Buffer.byteLength(process.env.JWT_SECRET, "utf8") < 32) {
+        console.error("JWT_SECRET must be at least 32 bytes long.")
+        return res.status(503).json({ message: "The service is not configured yet." })
+    }
+
+    try {
+        if (mongoose.connection.readyState !== 1) {
+            databaseConnection ??= connectToDB().catch(error => {
+                databaseConnection = undefined
+                throw error
+            })
+            await databaseConnection
+        }
+    } catch (error) {
+        console.error("MongoDB connection failed:", error.message)
+        return res.status(503).json({ message: "The database is temporarily unavailable." })
     }
 
     return next()
