@@ -11,7 +11,11 @@ const configuredOrigins = (process.env.CORS_ORIGINS || (process.env.NODE_ENV ===
     .split(",")
     .map(origin => origin.trim())
     .filter(Boolean)
-const deploymentOrigins = [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL]
+const deploymentOrigins = [
+    process.env.VERCEL_URL,
+    process.env.VERCEL_BRANCH_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+]
     .filter(Boolean)
     .map(host => `https://${host}`)
 const allowedOrigins = new Set([...configuredOrigins, ...deploymentOrigins])
