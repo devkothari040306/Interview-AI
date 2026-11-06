@@ -85,6 +85,10 @@ app.use((error, req, res, next) => {
         return res.status(409).json({ message: "An account already exists with those details." })
     }
 
+    if (error.statusCode === 502 && error.publicMessage) {
+        return res.status(502).json({ message: error.publicMessage })
+    }
+
     if (error.message === "Only PDF resumes are supported.") {
         return res.status(400).json({ message: error.message })
     }

@@ -1,57 +1,156 @@
 const { GoogleGenAI } = require("@google/genai")
 const { z } = require("zod")
-const { zodToJsonSchema } = require("zod-to-json-schema")
 const puppeteer = require("puppeteer")
 
 const ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_GENAI_API_KEY
 })
 
+function reportGenerationError(message, cause) {
+    const error = new Error(message, { cause })
+    error.statusCode = 502
+    error.publicMessage = message
+    return error
+}
+
 
 const interviewReportSchema = z.object({
-    matchScore: z.number().describe("A score between 0 and 100 indicating how well the candidate's profile matches the job describe"),
+    matchScore: z.number().min(0).max(100),
     technicalQuestions: z.array(z.object({
-        question: z.string().describe("The technical question can be asked in the interview"),
-        intention: z.string().describe("The intention of interviewer behind asking this question"),
-        answer: z.string().describe("How to answer this question, what points to cover, what approach to take etc.")
-    })).describe("Technical questions that can be asked in the interview along with their intention and how to answer them"),
+        question: z.string(),
+        intention: z.string(),
+        answer: z.string()
+    })).min(1),
     behavioralQuestions: z.array(z.object({
-        question: z.string().describe("The technical question can be asked in the interview"),
-        intention: z.string().describe("The intention of interviewer behind asking this question"),
-        answer: z.string().describe("How to answer this question, what points to cover, what approach to take etc.")
-    })).describe("Behavioral questions that can be asked in the interview along with their intention and how to answer them"),
+        question: z.string(),
+        intention: z.string(),
+        answer: z.string()
+    })).min(1),
     skillGaps: z.array(z.object({
-        skill: z.string().describe("The skill which the candidate is lacking"),
-        severity: z.enum([ "low", "medium", "high" ]).describe("The severity of this skill gap, i.e. how important is this skill for the job and how much it can impact the candidate's chances")
-    })).describe("List of skill gaps in the candidate's profile along with their severity"),
+        skill: z.string(),
+        severity: z.enum([ "low", "medium", "high" ])
+    })).min(1),
     preparationPlan: z.array(z.object({
-        day: z.number().describe("The day number in the preparation plan, starting from 1"),
-        focus: z.string().describe("The main focus of this day in the preparation plan, e.g. data structures, system design, mock interviews etc."),
-        tasks: z.array(z.string()).describe("List of tasks to be done on this day to follow the preparation plan, e.g. read a specific book or article, solve a set of problems, watch a video etc.")
-    })).describe("A day-wise preparation plan for the candidate to follow in order to prepare for the interview effectively"),
-    title: z.string().describe("The title of the job for which the interview report is generated"),
+        day: z.number().int().min(1),
+        focus: z.string(),
+        tasks: z.array(z.string()).min(1)
+    })).min(1),
+    title: z.string().min(1)
 })
+
+const interviewReportJsonSchema = {
+    type: "object",
+    properties: {
+        matchScore: { type: "number" },
+        technicalQuestions: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    question: { type: "string" },
+                    intention: { type: "string" },
+                    answer: { type: "string" }
+                },
+                required: [ "question", "intention", "answer" ]
+            }
+        },
+        behavioralQuestions: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    question: { type: "string" },
+                    intention: { type: "string" },
+                    answer: { type: "string" }
+                },
+                required: [ "question", "intention", "answer" ]
+            }
+        },
+        skillGaps: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    skill: { type: "string" },
+                    severity: { type: "string", enum: [ "low", "medium", "high" ] }
+                },
+                required: [ "skill", "severity" ]
+            }
+        },
+        preparationPlan: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    day: { type: "integer" },
+                    focus: { type: "string" },
+                    tasks: { type: "array", items: { type: "string" } }
+                },
+                required: [ "day", "focus", "tasks" ]
+            }
+        },
+        title: { type: "string" }
+    },
+    required: [
+        "matchScore",
+        "technicalQuestions",
+        "behavioralQuestions",
+        "skillGaps",
+        "preparationPlan",
+        "title"
+    ],
+    additionalProperties: false
+}
 
 async function generateInterviewReport({ resume, selfDescription, jobDescription }) {
 
+    const prompt = `Create a personalized interview-preparation report using this candidate information.
+Return at least three technical questions, three behavioral questions, one skill gap, and a preparation plan.
+Use a match score from 0 to 100. Return only data that matches the supplied JSON schema.
 
-    const prompt = `Generate an interview report for a candidate with the following details:
-                        Resume: ${resume}
-                        Self Description: ${selfDescription}
-                        Job Description: ${jobDescription}
+Resume:
+${resume || "Not provided"}
+
+Self-description:
+${selfDescription || "Not provided"}
+
+Job description:
+${jobDescription}
 `
 
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: zodToJsonSchema(interviewReportSchema),
-        }
-    })
+    let response
+    try {
+        response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseJsonSchema: interviewReportJsonSchema
+            }
+        })
+    } catch (error) {
+        console.error("Gemini interview report request failed:", error)
+        throw reportGenerationError("The AI service could not generate the interview report. Check the API key, model access, and quota, then try again.", error)
+    }
 
-    return JSON.parse(response.text)
+    if (!response.text) {
+        throw reportGenerationError("The AI service returned an empty interview report. Please try again.")
+    }
 
+    let parsedResponse
+    try {
+        parsedResponse = JSON.parse(response.text)
+    } catch (error) {
+        console.error("Gemini returned invalid JSON for the interview report:", error)
+        throw reportGenerationError("The AI service returned an invalid report. Please try again.", error)
+    }
+
+    try {
+        return interviewReportSchema.parse(parsedResponse)
+    } catch (error) {
+        console.error("Gemini interview report did not match the expected structure:", error)
+        throw reportGenerationError("The AI service returned an incomplete report. Please try again.", error)
+    }
 
 }
 
@@ -109,7 +208,12 @@ async function generateResumePdf({ resume, selfDescription, jobDescription }) {
         contents: prompt,
         config: {
             responseMimeType: "application/json",
-            responseSchema: zodToJsonSchema(resumePdfSchema),
+            responseJsonSchema: {
+                type: "object",
+                properties: { html: { type: "string" } },
+                required: [ "html" ],
+                additionalProperties: false
+            },
         }
     })
 
