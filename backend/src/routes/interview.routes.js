@@ -2,12 +2,14 @@ const express = require("express")
 const authMiddleware = require("../middlewares/auth.middleware")
 const interviewController = require("../controllers/interview.controller")
 const upload = require("../middlewares/file.middleware")
+const MongoRateLimitStore = require("../middlewares/mongo-rate-limit.store")
 const { rateLimit } = require("express-rate-limit")
 
 const interviewRouter = express.Router()
 const generationRateLimit = rateLimit({
     windowMs: 60 * 60 * 1000,
     limit: 5,
+    store: new MongoRateLimitStore("interview-generation"),
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: "Too many interview plans requested. Try again later." }
@@ -15,6 +17,7 @@ const generationRateLimit = rateLimit({
 const pdfRateLimit = rateLimit({
     windowMs: 60 * 60 * 1000,
     limit: 5,
+    store: new MongoRateLimitStore("resume-pdf"),
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: "Too many resume PDFs requested. Try again later." }

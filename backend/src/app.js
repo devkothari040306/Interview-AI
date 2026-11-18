@@ -93,6 +93,10 @@ app.use(async (req, res, next) => {
     return next()
 })
 
+app.get("/api/health", (req, res) => {
+    res.status(200).json({ status: "ok" })
+})
+
 /* require all the routes here */
 function resolveRouter(routerModule) {
     let router = routerModule

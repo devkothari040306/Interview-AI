@@ -1,11 +1,13 @@
 require("dotenv").config()
 const dns = require("node:dns")
-const dnsServers = (process.env.DNS_SERVERS || "8.8.8.8,8.8.4.4")
+const dnsServers = (process.env.DNS_SERVERS || "")
     .split(",")
     .map(server => server.trim())
     .filter(Boolean)
 
-dns.setServers(dnsServers)
+if (dnsServers.length > 0) {
+    dns.setServers(dnsServers)
+}
 
 const app = require("./src/app")
 const connectToDB = require("./src/config/database")

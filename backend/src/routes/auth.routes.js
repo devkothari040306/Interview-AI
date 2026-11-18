@@ -1,12 +1,14 @@
 const { Router } = require('express')
 const authController = require("../controllers/auth.controller")
 const authMiddleware = require("../middlewares/auth.middleware")
+const MongoRateLimitStore = require("../middlewares/mongo-rate-limit.store")
 const { rateLimit } = require("express-rate-limit")
 
 const authRouter = Router()
 const authRateLimit = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 10,
+    store: new MongoRateLimitStore("auth"),
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: "Too many authentication attempts. Try again later." }

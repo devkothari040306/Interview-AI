@@ -5,6 +5,8 @@ const ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_GENAI_API_KEY
 })
 
+const AI_REQUEST_TIMEOUT_MS = 15_000
+
 function reportGenerationError(message, cause) {
     const error = new Error(message, { cause })
     error.statusCode = 502
@@ -124,12 +126,27 @@ ${jobDescription}
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                responseJsonSchema: interviewReportJsonSchema
+                responseJsonSchema: interviewReportJsonSchema,
+                httpOptions: {
+                    timeout: AI_REQUEST_TIMEOUT_MS,
+                    retryOptions: {
+                        attempts: 2,
+                        initialDelay: 1,
+                        maxDelay: 3,
+                        httpStatusCodes: [ 408, 429, 502, 503, 504 ]
+                    }
+                }
             }
         })
     } catch (error) {
         console.error("Gemini interview report request failed:", error)
-        throw reportGenerationError("The AI service could not generate the interview report. Check the API key, model access, and quota, then try again.", error)
+        const status = error.status || error.statusCode
+        const message = status === 503
+            ? "The AI model is temporarily busy due to high demand. Please wait a minute and try again."
+            : status === 429
+                ? "The AI service quota has been reached. Please wait and try again."
+                : "The AI service could not generate the interview report. Check the API key, model access, and quota, then try again."
+        throw reportGenerationError(message, error)
     }
 
     if (!response.text) {
@@ -226,6 +243,15 @@ async function generateResumePdf({ resume, selfDescription, jobDescription }) {
                 required: [ "html" ],
                 additionalProperties: false
             },
+            httpOptions: {
+                timeout: AI_REQUEST_TIMEOUT_MS,
+                retryOptions: {
+                    attempts: 2,
+                    initialDelay: 1,
+                    maxDelay: 3,
+                    httpStatusCodes: [ 408, 429, 502, 503, 504 ]
+                }
+            }
         }
     })
 
