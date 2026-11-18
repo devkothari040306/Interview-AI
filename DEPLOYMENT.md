@@ -31,8 +31,9 @@ From the repository root:
 npm --prefix backend test
 npm --prefix frontend run lint
 npm --prefix frontend run build
-vercel build --prod
-vercel deploy --prebuilt --prod
+vercel deploy --prod
 ```
+
+Use Vercel's remote build for production deployments from Windows; do not upload a Windows-generated prebuilt function bundle to the Linux runtime.
 
 After deployment, verify `https://<production-domain>/api/health`, registration/login, report generation, and resume download. Keep production credentials in Vercel's encrypted environment variables.
