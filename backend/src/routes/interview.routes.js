@@ -56,4 +56,4 @@ interviewRouter.post("/resume/pdf/:interviewReportId", pdfRateLimit, authMiddlew
 
 
 
-module.exports = { router: interviewRouter }
+module.exports = interviewRouter

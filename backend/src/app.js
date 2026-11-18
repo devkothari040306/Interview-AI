@@ -3,6 +3,7 @@ const cookieParser = require("cookie-parser")
 const cors = require("cors")
 const multer = require("multer")
 const mongoose = require("mongoose")
+require("@napi-rs/canvas")
 const connectToDB = require("./config/database")
 
 const app = express()
@@ -101,14 +102,7 @@ app.get("/api/health", (req, res) => {
 function resolveRouter(routerModule) {
     let router = routerModule
     const seen = new Set()
-    const exportShape = []
     while (router && typeof router !== "function" && !seen.has(router)) {
-        exportShape.push({
-            type: typeof router,
-            keys: Object.keys(router).slice(0, 10),
-            defaultType: typeof router.default,
-            routerType: typeof router.router
-        })
         seen.add(router)
         if (router.default && router.default !== router) {
             router = router.default
@@ -119,13 +113,13 @@ function resolveRouter(routerModule) {
         }
     }
     if (typeof router !== "function") {
-        throw new TypeError(`An API route module did not export an Express router: ${JSON.stringify(exportShape)}.`)
+        throw new TypeError("An API route module did not export an Express router.")
     }
     return router
 }
 
-const authRouter = resolveRouter(require("./routes/auth.routes"))
-const interviewRouter = resolveRouter(require("./routes/interview.routes"))
+const authRouter = resolveRouter(module.require("./routes/auth.routes"))
+const interviewRouter = resolveRouter(module.require("./routes/interview.routes"))
 
 /* using all the routes here */
 app.use("/api/auth", authRouter)

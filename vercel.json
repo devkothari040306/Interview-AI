@@ -15,7 +15,8 @@
       "framework": "express",
       "functions": {
         "src/app.js": {
-          "maxDuration": 60
+          "maxDuration": 60,
+          "includeFiles": "src/**/*.js"
         }
       }
     }

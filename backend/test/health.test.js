@@ -25,13 +25,13 @@ if (previousDatabaseModule) {
     delete require.cache[databaseModulePath]
 }
 
-test("health endpoint confirms the API can serve requests", async () => {
+test("health and protected route handlers survive router module loading", async () => {
     const server = app.listen(0)
     await new Promise(resolve => server.once("listening", resolve))
 
     try {
-        const response = await new Promise((resolve, reject) => {
-            http.get(`http://127.0.0.1:${server.address().port}/api/health`, incoming => {
+        const getResponse = path => new Promise((resolve, reject) => {
+            http.get(`http://127.0.0.1:${server.address().port}${path}`, incoming => {
                 let body = ""
                 incoming.setEncoding("utf8")
                 incoming.on("data", chunk => { body += chunk })
@@ -42,8 +42,14 @@ test("health endpoint confirms the API can serve requests", async () => {
             }).on("error", reject)
         })
 
-        assert.equal(response.status, 200)
-        assert.deepEqual(response.body, { status: "ok" })
+        assert.deepEqual(await getResponse("/api/health"), {
+            status: 200,
+            body: { status: "ok" }
+        })
+        assert.deepEqual(await getResponse("/api/auth/get-me"), {
+            status: 401,
+            body: { message: "Token not provided." }
+        })
     } finally {
         await new Promise((resolve, reject) => {
             server.close(error => error ? reject(error) : resolve())
