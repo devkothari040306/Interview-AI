@@ -100,8 +100,16 @@ app.get("/api/health", (req, res) => {
 /* require all the routes here */
 function resolveRouter(routerModule) {
     let router = routerModule
-    while (router && typeof router !== "function" && router.default) {
-        router = router.default
+    const seen = new Set()
+    while (router && typeof router !== "function" && !seen.has(router)) {
+        seen.add(router)
+        if (router.default && router.default !== router) {
+            router = router.default
+        } else if (router.router && router.router !== router) {
+            router = router.router
+        } else {
+            break
+        }
     }
     if (typeof router !== "function") {
         throw new TypeError("An API route module did not export an Express router.")
